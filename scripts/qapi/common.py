@@ -24,7 +24,7 @@ from typing import (
 
 #: Magic string that gets removed along with all space to its right.
 EATSPACE = '\033EATSPACE.'
-POINTER_SUFFIX = ' *' + EATSPACE
+POINTER_SUFFIX = f' *{EATSPACE}'
 
 
 def camel_to_upper(value: str) -> str:
@@ -70,7 +70,7 @@ def c_enum_const(type_name: str,
     """
     if prefix is not None:
         type_name = prefix
-    return camel_to_upper(type_name) + '_' + c_name(const_name, False).upper()
+    return f'{camel_to_upper(type_name)}_{c_name(const_name, False).upper()}'
 
 
 def c_name(name: str, protect: bool = True) -> str:
@@ -89,37 +89,107 @@ def c_name(name: str, protect: bool = True) -> str:
                     (like C keywords) by prepending ``q_``.
     """
     # ANSI X3J11/88-090, 3.1.1
-    c89_words = set(['auto', 'break', 'case', 'char', 'const', 'continue',
-                     'default', 'do', 'double', 'else', 'enum', 'extern',
-                     'float', 'for', 'goto', 'if', 'int', 'long', 'register',
-                     'return', 'short', 'signed', 'sizeof', 'static',
-                     'struct', 'switch', 'typedef', 'union', 'unsigned',
-                     'void', 'volatile', 'while'])
+    c89_words = {
+        'auto',
+        'break',
+        'case',
+        'char',
+        'const',
+        'continue',
+        'default',
+        'do',
+        'double',
+        'else',
+        'enum',
+        'extern',
+        'float',
+        'for',
+        'goto',
+        'if',
+        'int',
+        'long',
+        'register',
+        'return',
+        'short',
+        'signed',
+        'sizeof',
+        'static',
+        'struct',
+        'switch',
+        'typedef',
+        'union',
+        'unsigned',
+        'void',
+        'volatile',
+        'while',
+    }
+
     # ISO/IEC 9899:1999, 6.4.1
-    c99_words = set(['inline', 'restrict', '_Bool', '_Complex', '_Imaginary'])
+    c99_words = {'inline', 'restrict', '_Bool', '_Complex', '_Imaginary'}
     # ISO/IEC 9899:2011, 6.4.1
-    c11_words = set(['_Alignas', '_Alignof', '_Atomic', '_Generic',
-                     '_Noreturn', '_Static_assert', '_Thread_local'])
+    c11_words = {
+        '_Alignas',
+        '_Alignof',
+        '_Atomic',
+        '_Generic',
+        '_Noreturn',
+        '_Static_assert',
+        '_Thread_local',
+    }
+
     # GCC http://gcc.gnu.org/onlinedocs/gcc-4.7.1/gcc/C-Extensions.html
     # excluding _.*
-    gcc_words = set(['asm', 'typeof'])
+    gcc_words = {'asm', 'typeof'}
     # C++ ISO/IEC 14882:2003 2.11
-    cpp_words = set(['bool', 'catch', 'class', 'const_cast', 'delete',
-                     'dynamic_cast', 'explicit', 'false', 'friend', 'mutable',
-                     'namespace', 'new', 'operator', 'private', 'protected',
-                     'public', 'reinterpret_cast', 'static_cast', 'template',
-                     'this', 'throw', 'true', 'try', 'typeid', 'typename',
-                     'using', 'virtual', 'wchar_t',
-                     # alternative representations
-                     'and', 'and_eq', 'bitand', 'bitor', 'compl', 'not',
-                     'not_eq', 'or', 'or_eq', 'xor', 'xor_eq'])
+    cpp_words = {
+        'bool',
+        'catch',
+        'class',
+        'const_cast',
+        'delete',
+        'dynamic_cast',
+        'explicit',
+        'false',
+        'friend',
+        'mutable',
+        'namespace',
+        'new',
+        'operator',
+        'private',
+        'protected',
+        'public',
+        'reinterpret_cast',
+        'static_cast',
+        'template',
+        'this',
+        'throw',
+        'true',
+        'try',
+        'typeid',
+        'typename',
+        'using',
+        'virtual',
+        'wchar_t',
+        'and',
+        'and_eq',
+        'bitand',
+        'bitor',
+        'compl',
+        'not',
+        'not_eq',
+        'or',
+        'or_eq',
+        'xor',
+        'xor_eq',
+    }
+
     # namespace pollution:
-    polluted_words = set(['unix', 'errno', 'mips', 'sparc', 'i386'])
+    polluted_words = {'unix', 'errno', 'mips', 'sparc', 'i386'}
     name = re.sub(r'[^A-Za-z0-9_]', '_', name)
     if protect and (name in (c89_words | c99_words | c11_words | gcc_words
                              | cpp_words | polluted_words)
                     or name[0].isdigit()):
-        return 'q_' + name
+        return f'q_{name}'
     return name
 
 
@@ -160,10 +230,9 @@ def cgen(code: str, **kwds: object) -> str:
     Obey `indent`, and strip `EATSPACE`.
     """
     raw = code % kwds
-    pfx = str(indent)
-    if pfx:
+    if pfx := str(indent):
         raw = re.sub(r'^(?!(#|$))', pfx, raw, flags=re.MULTILINE)
-    return re.sub(re.escape(EATSPACE) + r' *', '', raw)
+    return re.sub(f'{re.escape(EATSPACE)} *', '', raw)
 
 
 def mcgen(code: str, **kwds: object) -> str:
@@ -198,7 +267,7 @@ def gen_ifcond(ifcond: Optional[Union[str, Dict[str, Any]]],
                all_operator: str, any_operator: str) -> str:
 
     def do_gen(ifcond: Union[str, Dict[str, Any]],
-               need_parens: bool) -> str:
+                   need_parens: bool) -> str:
         if isinstance(ifcond, str):
             return cond_fmt % ifcond
         assert isinstance(ifcond, dict) and len(ifcond) == 1
@@ -209,15 +278,13 @@ def gen_ifcond(ifcond: Optional[Union[str, Dict[str, Any]]],
         else:
             gen = gen_infix(any_operator, ifcond['any'])
         if need_parens:
-            gen = '(' + gen + ')'
+            gen = f'({gen})'
         return gen
 
     def gen_infix(operator: str, operands: Sequence[Any]) -> str:
         return operator.join([do_gen(o, True) for o in operands])
 
-    if not ifcond:
-        return ''
-    return do_gen(ifcond, False)
+    return do_gen(ifcond, False) if ifcond else ''
 
 
 def cgen_ifcond(ifcond: Optional[Union[str, Dict[str, Any]]]) -> str:
@@ -230,19 +297,29 @@ def docgen_ifcond(ifcond: Optional[Union[str, Dict[str, Any]]]) -> str:
 
 
 def gen_if(cond: str) -> str:
-    if not cond:
-        return ''
-    return mcgen('''
+    return (
+        mcgen(
+            '''
 #if %(cond)s
-''', cond=cond)
+''',
+            cond=cond,
+        )
+        if cond
+        else ''
+    )
 
 
 def gen_endif(cond: str) -> str:
-    if not cond:
-        return ''
-    return mcgen('''
+    return (
+        mcgen(
+            '''
 #endif /* %(cond)s */
-''', cond=cond)
+''',
+            cond=cond,
+        )
+        if cond
+        else ''
+    )
 
 
 def must_match(pattern: str, string: str) -> Match[str]:

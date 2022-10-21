@@ -84,8 +84,7 @@ class QAPISchemaEntity:
         self._checked = True
 
     def connect_doc(self, doc=None):
-        doc = doc or self.doc
-        if doc:
+        if doc := doc or self.doc:
             for f in self.features:
                 doc.connect_feature(f)
 
@@ -248,9 +247,7 @@ class QAPISchemaType(QAPISchemaEntity):
         return json2qtype.get(self.json_type())
 
     def doc_type(self):
-        if self.is_implicit():
-            return None
-        return self.name
+        return None if self.is_implicit() else self.name
 
     def check(self, schema):
         QAPISchemaEntity.check(self, schema)
@@ -284,7 +281,7 @@ class QAPISchemaBuiltinType(QAPISchemaType):
 
     def c_param_type(self):
         if self.name == 'str':
-            return 'const ' + self._c_type_name
+            return f'const {self._c_type_name}'
         return self._c_type_name
 
     def json_type(self):
@@ -377,9 +374,7 @@ class QAPISchemaArrayType(QAPISchemaType):
 
     def doc_type(self):
         elt_doc_type = self.element_type.doc_type()
-        if not elt_doc_type:
-            return None
-        return 'array of ' + elt_doc_type
+        return f'array of {elt_doc_type}' if elt_doc_type else None
 
     def visit(self, visitor):
         super().visit(visitor)
@@ -420,8 +415,7 @@ class QAPISchemaObjectType(QAPISchemaType):
             return
         if self._checked:
             # Recursed: C struct contains itself
-            raise QAPISemError(self.info,
-                               "object %s contains itself" % self.name)
+            raise QAPISemError(self.info, f"object {self.name} contains itself")
 
         super().check(schema)
         assert self._checked and self.members is None
@@ -526,9 +520,10 @@ class QAPISchemaAlternateType(QAPISchemaType):
             if not qtype:
                 raise QAPISemError(
                     self.info,
-                    "%s cannot use %s"
-                    % (v.describe(self.info), v.type.describe()))
-            conflicting = set([qtype])
+                    f"{v.describe(self.info)} cannot use {v.type.describe()}",
+                )
+
+            conflicting = {qtype}
             if qtype == 'QTYPE_QSTRING':
                 if isinstance(v.type, QAPISchemaEnumType):
                     for m in v.type.members:
@@ -645,8 +640,9 @@ class QAPISchemaVariants:
                         or v.type.variants):
                     raise QAPISemError(
                         self.info,
-                        "%s cannot use %s"
-                        % (v.describe(self.info), v.type.describe()))
+                        f"{v.describe(self.info)} cannot use {v.type.describe()}",
+                    )
+
                 v.type.check(schema)
 
     def check_clash(self, info, seen):
@@ -676,8 +672,9 @@ class QAPISchemaMember:
         if cname in seen:
             raise QAPISemError(
                 info,
-                "%s collides with %s"
-                % (self.describe(info), seen[cname].describe(info)))
+                f"{self.describe(info)} collides with {seen[cname].describe(info)}",
+            )
+
         seen[cname] = self
 
     def connect_doc(self, doc):
@@ -699,7 +696,7 @@ class QAPISchemaMember:
                 role = 'parameter'
             elif defined_in.endswith('-base'):
                 # Implicit type created for a union's dict 'base'
-                role = 'base ' + role
+                role = f'base {role}'
             else:
                 assert False
         elif defined_in != info.defn_name:
@@ -818,8 +815,7 @@ class QAPISchemaCommand(QAPISchemaEntity):
 
     def connect_doc(self, doc=None):
         super().connect_doc(doc)
-        doc = doc or self.doc
-        if doc:
+        if doc := doc or self.doc:
             if self.arg_type and self.arg_type.is_implicit():
                 self.arg_type.connect_doc(doc)
 
@@ -860,8 +856,7 @@ class QAPISchemaEvent(QAPISchemaEntity):
 
     def connect_doc(self, doc=None):
         super().connect_doc(doc)
-        doc = doc or self.doc
-        if doc:
+        if doc := doc or self.doc:
             if self.arg_type and self.arg_type.is_implicit():
                 self.arg_type.connect_doc(doc)
 
@@ -903,24 +898,18 @@ class QAPISchema:
         self._entity_list.append(ent)
         if ent.name is None:
             return
-        # TODO reject names that differ only in '_' vs. '.'  vs. '-',
-        # because they're liable to clash in generated C.
-        other_ent = self._entity_dict.get(ent.name)
-        if other_ent:
+        if other_ent := self._entity_dict.get(ent.name):
             if other_ent.info:
                 where = QAPISourceError(other_ent.info, "previous definition")
                 raise QAPISemError(
                     ent.info,
                     "'%s' is already defined\n%s" % (ent.name, where))
-            raise QAPISemError(
-                ent.info, "%s is already defined" % other_ent.describe())
+            raise QAPISemError(ent.info, f"{other_ent.describe()} is already defined")
         self._entity_dict[ent.name] = ent
 
     def lookup_entity(self, name, typ=None):
         ent = self._entity_dict.get(name)
-        if typ and not isinstance(ent, typ):
-            return None
-        return ent
+        return None if typ and not isinstance(ent, typ) else ent
 
     def lookup_type(self, name):
         return self.lookup_entity(name, QAPISchemaType)
@@ -963,21 +952,7 @@ class QAPISchema:
         self._make_array_type(name, None)
 
     def _def_predefineds(self):
-        for t in [('str',    'string',  'char' + POINTER_SUFFIX),
-                  ('number', 'number',  'double'),
-                  ('int',    'int',     'int64_t'),
-                  ('int8',   'int',     'int8_t'),
-                  ('int16',  'int',     'int16_t'),
-                  ('int32',  'int',     'int32_t'),
-                  ('int64',  'int',     'int64_t'),
-                  ('uint8',  'int',     'uint8_t'),
-                  ('uint16', 'int',     'uint16_t'),
-                  ('uint32', 'int',     'uint32_t'),
-                  ('uint64', 'int',     'uint64_t'),
-                  ('size',   'int',     'uint64_t'),
-                  ('bool',   'boolean', 'bool'),
-                  ('any',    'value',   'CFTypeRef'),
-                  ('null',   'null',    'CFNullRef')]:
+        for t in [('str', 'string', f'char{POINTER_SUFFIX}'), ('number', 'number',  'double'), ('int',    'int',     'int64_t'), ('int8',   'int',     'int8_t'), ('int16',  'int',     'int16_t'), ('int32',  'int',     'int32_t'), ('int64',  'int',     'int64_t'), ('uint8',  'int',     'uint8_t'), ('uint16', 'int',     'uint16_t'), ('uint32', 'int',     'uint32_t'), ('uint64', 'int',     'uint64_t'), ('size',   'int',     'uint64_t'), ('bool',   'boolean', 'bool'), ('any',    'value',   'CFTypeRef'), ('null',   'null',    'CFNullRef')]:
             self._def_builtin_type(*t)
         self.the_empty_object_type = QAPISchemaObjectType(
             'q_empty', None, None, None, None, None, [], None)
@@ -1009,7 +984,7 @@ class QAPISchema:
                 for v in values]
 
     def _make_array_type(self, element_type, info):
-        name = element_type + 'List'    # reserved by check_defn_name_str()
+        name = f'{element_type}List'
         if not self.lookup_type(name):
             self._def_entity(QAPISchemaArrayType(name, info, element_type))
         return name
@@ -1018,14 +993,9 @@ class QAPISchema:
         if not members:
             return None
         # See also QAPISchemaObjectTypeMember.describe()
-        name = 'q_obj_%s-%s' % (name, role)
+        name = f'q_obj_{name}-{role}'
         typ = self.lookup_entity(name, QAPISchemaObjectType)
-        if typ:
-            # The implicit object type has multiple users.  This can
-            # only be a duplicate definition, which will be flagged
-            # later.
-            pass
-        else:
+        if not typ:
             self._def_entity(QAPISchemaObjectType(
                 name, info, None, ifcond, None, None, members, None))
         return name

@@ -61,26 +61,14 @@ DISPLAY_CG3 = Device('cg3', 'none', '', 'Sun cgthree')
 NETWORK_LANCE = Device('lance', 'none', '', 'Lance (Am7990)')
 
 ADD_DEVICES = {
-    "ppc": {
-        "Sound devices": set([
-            AUDIO_SCREAMER
-        ])
-    },
-    "ppc64": {
-        "Sound devices": set([
-            AUDIO_SCREAMER
-        ])
-    },
+    "ppc": {"Sound devices": {AUDIO_SCREAMER}},
+    "ppc64": {"Sound devices": {AUDIO_SCREAMER}},
     "sparc": {
-        "Display devices": set([
-            DISPLAY_TCX,
-            DISPLAY_CG3
-        ]),
-        "Network devices": set([
-            NETWORK_LANCE
-        ])
+        "Display devices": {DISPLAY_TCX, DISPLAY_CG3},
+        "Network devices": {NETWORK_LANCE},
     },
 }
+
 
 HEADER = '''//
 // Copyright © 2022 osy. All rights reserved.
@@ -111,9 +99,9 @@ def parseListing(listing):
         idx = line.find(' ')
         if idx < 0:
             break
-        name = line[0:idx]
+        name = line[:idx]
         description = line[idx:].strip()
-        result.add(Name(name, '{} ({})'.format(description, name)))
+        result.add(Name(name, f'{description} ({name})'))
     return result
 
 def parseDeviceListing(defaults, listing):
@@ -127,36 +115,37 @@ def parseDeviceListing(defaults, listing):
             group = line.rstrip(':')
             continue
         search = re.search('^name "(?P<name>[^"]*)"(?:, bus (?P<bus>[^\s]+))?(?:, alias "(?P<alias>[^"]+)")?(?:, desc "(?P<desc>[^"]+)")?$', line)
-        name = search.group('name')
-        desc = search.group('desc')
-        if not desc:
-            desc = name
-        else:
-            desc = '{} ({})'.format(desc, name)
-        item = Device(name, search.group('bus'), search.group('alias'), desc)
+        name = search['name']
+        desc = search['desc']
+        desc = f'{desc} ({name})' if desc else name
+        item = Device(name, search['bus'], search['alias'], desc)
         result[group].add(item)
     return result
 
 def parseCpu(listing):
     def parseMips(line):
         search = re.search('^(?P<arch>\S+)\s+\'(?P<name>.+)\'.*', line)
-        return Name(search.group('name'), search.group('name'))
+        return Name(search['name'], search['name'])
+
     def parseSingle(line):
         name = line.strip()
         return Name(name, name)
+
     def parseSparc(line):
         search = re.search('^(?P<arch>\S+)\s+(?P<name>.+)\s+IU\s+(?P<iu>\S+)\s+FPU\s+(?P<fpu>\S+)\s+MMU\s+(?P<mmu>\S+)\s+NWINS\s+(?P<nwins>\d+).*$', line)
-        return Name(search.group('name'), search.group('name'))
+        return Name(search['name'], search['name'])
+
     def parseStandard(line):
         search = re.search('^(?P<arch>\S+)\s+(?P<name>\S+)\s+(?P<desc>.*)?$', line)
-        name = search.group('name')
-        desc = search.group('desc').strip()
+        name = search['name']
+        desc = search['desc'].strip()
         desc = ' '.join(desc.split())
         if not desc or desc.startswith('(alias'):
             desc = name
         else:
             desc = '{} ({})'.format(desc, name)
         return Name(name, desc)
+
     def parseSparcFlags(line):
         if line.startswith('Default CPU feature flags') or line.startswith('Available CPU feature flags'):
             flags = line.split(':')[1].strip()
@@ -165,22 +154,24 @@ def parseCpu(listing):
             return []
         else:
             return None
+
     def parseS390Flags(line):
         if line.endswith(':'):
             return []
-        else:
-            flag = line.split(' ')[0]
-            return [Name(flag, flag)]
+        flag = line.split(' ')[0]
+        return [Name(flag, flag)]
+
     def parseX86Flags(line):
         flags = []
         for flag in line.split(' '):
             if flag:
                 flags.append(Name(flag, flag))
         return flags
+
     output = enumerate(listing.splitlines())
     cpus = [Name('default', 'Default')]
     flags = []
-    if next(output, None) == None:
+    if next(output, None) is None:
         return (cpus, flags)
     for (index, line) in output:
         if not line:
@@ -199,7 +190,7 @@ def parseCpu(listing):
         if cpu.name != 'default':
             cpus.append(cpu)
     header = next(output, None)
-    if header == None:
+    if header is None:
         return (cpus, flags)
     for (index, line) in output:
         if header[1] == 'Recognized CPUID flags:':
@@ -210,7 +201,7 @@ def parseCpu(listing):
     return (cpus, flags)
 
 def sortItems(items):
-    return sorted(items, key=lambda item: item.desc if item.desc else item.name)
+    return sorted(items, key=lambda item: item.desc or item.name)
 
 def getMachines(target, qemu_path):
     output = subprocess.check_output([qemu_path, '-machine', 'help']).decode('utf-8')
@@ -226,8 +217,9 @@ def getDefaultMachine(target, machines):
 
 def getDevices(target, qemu_path):
     output = subprocess.check_output([qemu_path, '-device', 'help']).decode('utf-8')
-    devices = parseDeviceListing(ADD_DEVICES[target.name] if target.name in ADD_DEVICES else {}, output)
-    return devices
+    return parseDeviceListing(
+        ADD_DEVICES[target.name] if target.name in ADD_DEVICES else {}, output
+    )
 
 def getCpus(target, qemu_path):
     output = subprocess.check_output([qemu_path, '-cpu', 'help']).decode('utf-8')
@@ -238,9 +230,9 @@ def sanitizeName(name):
     if len(sanitized) == 0:
         sanitized = '_empty'
     if sanitized[0].isdigit():
-        sanitized = '_' + sanitized
+        sanitized = f'_{sanitized}'
     if sanitized in ['default']:
-        sanitized = '`' + sanitized + '`'
+        sanitized = f'`{sanitized}`'
     return sanitized
 
 def generateEmptyEnum(name):
@@ -298,7 +290,7 @@ def generateEnumForeachArchitecture(name, targetItems, defaults={}):
     output = ''
     for target in targetItems:
         arch = target.name
-        className = name + '_' + arch
+        className = f'{name}_{arch}'
         sortedItems = sortItems(target.items)
         values = [item.name for item in sortedItems]
         prettyValues = [item.desc for item in sortedItems]
@@ -331,8 +323,9 @@ def generate(targets, cpus, cpuFlags, machines, displayDevices, networkDevices, 
 def transformDisplayCards(displayCards):
     def transform(item):
         if item.name.endswith('-gl') or '-gl-' in item.name:
-            item = Device(item.name, item.bus, item.alias, item.desc + ' (GPU Supported)')
+            item = Device(item.name, item.bus, item.alias, f'{item.desc} (GPU Supported)')
         return item
+
     return set(map(transform, displayCards))
 
 def main(argv):
@@ -346,9 +339,9 @@ def main(argv):
     allSerialCards = []
     # parse outputs
     for target in TARGETS:
-        path = '{}/{}-softmmu/qemu-system-{}'.format(base, target.name, target.name)
+        path = f'{base}/{target.name}-softmmu/qemu-system-{target.name}'
         if not os.path.exists(path):
-            path = '{}/qemu-system-{}'.format(base, target.name)
+            path = f'{base}/qemu-system-{target.name}'
             if not os.path.exists(path):
                 raise "Invalid path."
         machines = sortItems(getMachines(target, path))

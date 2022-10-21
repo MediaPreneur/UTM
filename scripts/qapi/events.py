@@ -29,7 +29,7 @@ from .types import gen_enum, gen_enum_lookup
 
 
 def build_handler_name(name: str) -> str:
-    return 'qapi_%s_handler' % name.lower()
+    return f'qapi_{name.lower()}_handler'
 
 
 def build_event_handler_proto(name: str,
@@ -55,20 +55,19 @@ void qapi_event_dispatch_%(name)s(%(handler_type)s handler, CFDictionaryRef data
 
 # Calling the handler
 def gen_call_handler(typ: QAPISchemaObjectType) -> str:
-    if typ:
-        assert not typ.variants
-        ret = ''
-        sep = ''
-        for memb in typ.members:
-            ret += sep
-            sep = ', '
-            if memb.optional:
-                ret += 'arg->has_' + c_name(memb.name) + sep
-            ret += 'arg->' + c_name(memb.name)
-        ret += sep + 'ctx'
-        return ret
-    else:
+    if not typ:
         return 'ctx'
+    assert not typ.variants
+    ret = ''
+    sep = ''
+    for memb in typ.members:
+        ret += sep
+        sep = ', '
+        if memb.optional:
+            ret += f'arg->has_{c_name(memb.name)}{sep}'
+        ret += f'arg->{c_name(memb.name)}'
+    ret += f'{sep}ctx'
+    return ret
 
 
 def gen_event_dispatch(name: str,
@@ -200,10 +199,10 @@ class QAPISchemaGenEventVisitor(QAPISchemaModularCVisitor):
         super().__init__(
             prefix, 'qapi-events',
             ' * Schema-defined QAPI/QMP events', None, __doc__)
-        self._event_enum_name = c_name(prefix + 'QAPIEvent', protect=False)
+        self._event_enum_name = c_name(f'{prefix}QAPIEvent', protect=False)
         self._event_registry = []
         self._event_enum_members: List[QAPISchemaEnumMember] = []
-        self._event_dispatch_name = c_name(prefix + 'qapi_event_dispatch')
+        self._event_dispatch_name = c_name(f'{prefix}qapi_event_dispatch')
 
     def _begin_user_module(self, name: str) -> None:
         events = self._module_basename('qapi-events', name)
@@ -261,7 +260,15 @@ class QAPISchemaGenEventVisitor(QAPISchemaModularCVisitor):
             self._genc.add(gen_event_dispatch(name, arg_type, boxed,
                                           self._event_enum_name,
                                           self._event_dispatch_name))
-            self._event_registry.append((ifcond, c_enum_const(self._event_enum_name, name), 'qapi_event_dispatch_%s' % name, build_handler_name(name)))
+            self._event_registry.append(
+                (
+                    ifcond,
+                    c_enum_const(self._event_enum_name, name),
+                    f'qapi_event_dispatch_{name}',
+                    build_handler_name(name),
+                )
+            )
+
         # Note: we generate the enum member regardless of @ifcond, to
         # keep the enumeration usable in target-independent code.
         self._event_enum_members.append(QAPISchemaEnumMember(name, None))

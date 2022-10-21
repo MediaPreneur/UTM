@@ -23,9 +23,7 @@ from .visit import gen_visit
 
 def invalid_prefix_char(prefix: str) -> Optional[str]:
     match = must_match(r'([A-Za-z_.-][A-Za-z0-9_.-]*)?', prefix)
-    if match.end() != len(prefix):
-        return prefix[match.end()]
-    return None
+    return prefix[match.end()] if match.end() != len(prefix) else None
 
 
 def generate(schema_file: str,
@@ -77,8 +75,7 @@ def main() -> int:
     parser.add_argument('schema', action='store')
     args = parser.parse_args()
 
-    funny_char = invalid_prefix_char(args.prefix)
-    if funny_char:
+    if funny_char := invalid_prefix_char(args.prefix):
         msg = f"funny character '{funny_char}' in argument of --prefix"
         print(f"{sys.argv[0]}: {msg}", file=sys.stderr)
         return 1

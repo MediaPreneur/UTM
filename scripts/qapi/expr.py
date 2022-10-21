@@ -71,7 +71,7 @@ def check_name_is_str(name: object,
     :raise QAPISemError: When ``name`` fails validation.
     """
     if not isinstance(name, str):
-        raise QAPISemError(info, "%s requires a string name" % source)
+        raise QAPISemError(info, f"{source} requires a string name")
 
 
 def check_name_str(name: str, info: QAPISourceInfo, source: str) -> str:
@@ -96,7 +96,7 @@ def check_name_str(name: str, info: QAPISourceInfo, source: str) -> str:
     # and 'q_obj_*' implicit type names.
     match = valid_name.match(name)
     if not match or c_name(name, False).startswith('q_'):
-        raise QAPISemError(info, "%s has an invalid name" % source)
+        raise QAPISemError(info, f"{source} has an invalid name")
     return match.group(3)
 
 
@@ -160,7 +160,7 @@ def check_name_camel(name: str, info: QAPISourceInfo, source: str) -> None:
     """
     stem = check_name_str(name, info, source)
     if not re.match(r'[A-Z][A-Za-z0-9]*[a-z][A-Za-z0-9]*$', stem):
-        raise QAPISemError(info, "name of %s must use CamelCase" % source)
+        raise QAPISemError(info, f"name of {source} must use CamelCase")
 
 
 def check_defn_name_str(name: str, info: QAPISourceInfo, meta: str) -> None:
@@ -216,9 +216,9 @@ def check_keys(value: _JSONObject,
     if missing:
         raise QAPISemError(
             info,
-            "%s misses key%s %s"
-            % (source, 's' if len(missing) > 1 else '',
-               pprint(missing)))
+            f"{source} misses key{'s' if len(missing) > 1 else ''} {pprint(missing)}",
+        )
+
     allowed = set(required) | set(optional)
     unknown = set(value) - allowed
     if unknown:
@@ -377,21 +377,18 @@ def check_type(value: Optional[object],
     # Array type
     if isinstance(value, list):
         if not allow_array:
-            raise QAPISemError(info, "%s cannot be an array" % source)
+            raise QAPISemError(info, f"{source} cannot be an array")
         if len(value) != 1 or not isinstance(value[0], str):
-            raise QAPISemError(info,
-                               "%s: array type must contain single type name" %
-                               source)
+            raise QAPISemError(info, f"{source}: array type must contain single type name")
         return
 
     # Anonymous type
 
     if not allow_dict:
-        raise QAPISemError(info, "%s should be a type name" % source)
+        raise QAPISemError(info, f"{source} should be a type name")
 
     if not isinstance(value, dict):
-        raise QAPISemError(info,
-                           "%s should be an object or type name" % source)
+        raise QAPISemError(info, f"{source} should be an object or type name")
 
     permissive = False
     if isinstance(allow_dict, str):
@@ -406,7 +403,7 @@ def check_type(value: Optional[object],
                          permit_upper=permissive,
                          permit_underscore=permissive)
         if c_name(key, False) == 'u' or c_name(key, False).startswith('has_'):
-            raise QAPISemError(info, "%s uses reserved name" % key_source)
+            raise QAPISemError(info, f"{key_source} uses reserved name")
         check_keys(arg, info, key_source, ['type'], ['if', 'features'])
         check_if(arg, info, key_source)
         check_features(arg.get('features'), info)
@@ -478,7 +475,7 @@ def check_enum(expr: _JSONObject, info: QAPISourceInfo) -> None:
         source = "%s '%s'" % (source, member_name)
         # Enum members may start with a digit
         if member_name[0].isdigit():
-            member_name = 'd' + member_name  # Hack: hide the digit
+            member_name = f'd{member_name}'
         check_name_lower(member_name, info, source,
                          permit_upper=permissive,
                          permit_underscore=permissive)
