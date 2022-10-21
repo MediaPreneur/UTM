@@ -109,16 +109,14 @@ def gen_rpc_call(name: str,
                      c_type=ret_type.c_type())
 
     if have_args:
+        visit_type = ('visit_type_%s(v, "arguments", &argp, &err);'
+                         % arg_type.c_name())
         if boxed:
-            visit_type = ('visit_type_%s(v, "arguments", &argp, &err);'
-                             % arg_type.c_name())
             ret += mcgen('''
     %(c_name)s *argp = arg;
 ''',
                      c_name=arg_type.c_name())
         else:
-            visit_type = ('visit_type_%s(v, "arguments", &argp, &err);'
-                             % arg_type.c_name())
             ret += mcgen('''
     %(c_name)s _arg = {
 ''',

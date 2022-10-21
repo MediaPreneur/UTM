@@ -118,7 +118,7 @@ def _tree_to_qlit(obj: JSONValue,
 
         ret = ''
         if obj.comment:
-            ret += indent(level) + f"/* {obj.comment} */\n"
+            ret += f"{indent(level)}/* {obj.comment} */\n"
         if obj.ifcond.is_present():
             ret += obj.ifcond.gen_if()
         ret += _tree_to_qlit(obj.value, level)
@@ -194,7 +194,7 @@ class QAPISchemaGenIntrospectVisitor(QAPISchemaMonolithicCVisitor):
         for typ in self._used_types:
             typ.visit(self)
         # generate C
-        name = c_name(self._prefix, protect=False) + 'qmp_schema_qlit'
+        name = f'{c_name(self._prefix, protect=False)}qmp_schema_qlit'
         self._genh.add(mcgen('''
 #include "qapi/qmp/qlit.h"
 
@@ -240,7 +240,7 @@ const QLitObject %(c_name)s = %(c_string)s;
         if isinstance(typ, QAPISchemaBuiltinType):
             return typ.name
         if isinstance(typ, QAPISchemaArrayType):
-            return '[' + self._use_type(typ.element_type) + ']'
+            return f'[{self._use_type(typ.element_type)}]'
         return self._name(typ.name)
 
     @staticmethod
@@ -324,8 +324,7 @@ const QLitObject %(c_name)s = %(c_string)s;
                          ifcond: QAPISchemaIfCond,
                          element_type: QAPISchemaType) -> None:
         element = self._use_type(element_type)
-        self._gen_tree('[' + element + ']', 'array', {'element-type': element},
-                       ifcond)
+        self._gen_tree(f'[{element}]', 'array', {'element-type': element}, ifcond)
 
     def visit_object_type_flat(self, name: str, info: Optional[QAPISourceInfo],
                                ifcond: QAPISchemaIfCond,

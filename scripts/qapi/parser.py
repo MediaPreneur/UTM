@@ -149,9 +149,9 @@ class QAPISchemaParser:
                                           include)
                 self.exprs.append({'expr': {'include': incl_fname},
                                    'info': info})
-                exprs_include = self._include(include, info, incl_fname,
-                                              self._included)
-                if exprs_include:
+                if exprs_include := self._include(
+                    include, info, incl_fname, self._included
+                ):
                     self.exprs.extend(exprs_include.exprs)
                     self.docs.extend(exprs_include.docs)
             elif "pragma" in expr:
@@ -195,7 +195,7 @@ class QAPISchemaParser:
         inf: Optional[QAPISourceInfo] = info
         while inf:
             if incl_abs_fname == os.path.abspath(inf.fname):
-                raise QAPISemError(info, "inclusion loop for %s" % include)
+                raise QAPISemError(info, f"inclusion loop for {include}")
             inf = inf.parent
 
         # skip multiple include of the same file
@@ -216,9 +216,7 @@ class QAPISchemaParser:
         def check_list_str(name: str, value: object) -> List[str]:
             if (not isinstance(value, list) or
                     any(not isinstance(elt, str) for elt in value)):
-                raise QAPISemError(
-                    info,
-                    "pragma %s must be a list of strings" % name)
+                raise QAPISemError(info, f"pragma {name} must be a list of strings")
             return value
 
         pragma = info.pragma
@@ -523,10 +521,7 @@ class QAPIDoc:
 
     def has_section(self, name: str) -> bool:
         """Return True if we have a section with this name."""
-        for i in self.sections:
-            if i.name == name:
-                return True
-        return False
+        return any(i.name == name for i in self.sections)
 
     def append(self, line: str) -> None:
         """
@@ -554,11 +549,15 @@ class QAPIDoc:
 
     @staticmethod
     def _is_section_tag(name: str) -> bool:
-        return name in ('Returns:', 'Since:',
-                        # those are often singular or plural
-                        'Note:', 'Notes:',
-                        'Example:', 'Examples:',
-                        'TODO:')
+        return name in {
+            'Returns:',
+            'Since:',
+            'Note:',
+            'Notes:',
+            'Example:',
+            'Examples:',
+            'TODO:',
+        }
 
     def _append_body_line(self, line: str) -> None:
         """
@@ -763,11 +762,12 @@ class QAPIDoc:
         self._section = new_section
 
     def _append_freeform(self, line: str) -> None:
-        match = re.match(r'(@\S+:)', line)
-        if match:
-            raise QAPIParseError(self._parser,
-                                 "'%s' not allowed in free-form documentation"
-                                 % match.group(1))
+        if match := re.match(r'(@\S+:)', line):
+            raise QAPIParseError(
+                self._parser,
+                "'%s' not allowed in free-form documentation" % match[1],
+            )
+
         self._section.append(line)
 
     def connect_member(self, member: 'QAPISchemaMember') -> None:

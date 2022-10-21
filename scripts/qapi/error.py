@@ -42,8 +42,8 @@ class QAPISourceError(QAPIError):
         loc = str(self.info)
         if self.col is not None:
             assert self.info.line is not None
-            loc += ':%s' % self.col
-        return loc + ': ' + self.msg
+            loc += f':{self.col}'
+        return f'{loc}: {self.msg}'
 
 
 class QAPISemError(QAPISourceError):
